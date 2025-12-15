@@ -1,0 +1,5 @@
+ernest;pass1234;tematio_ernest;652029738;ernesttematio85@gmail.com;/bin/bash
+aubin;pass2341;tematio_ernest;652729738;ernesttematio85@gmail.com;/bin/bash
+jean;pass4321;tematio_ernest;652048638;ernesttematio85@gmail.com;/bin/bash
+pierre;pass2413;tematio_ernest;675029738;ernesttematio85@gmail.com;/bin/bash
+jacob;pass3421;tematio_ernest;652209738;ernesttematio85@gmail.com;/bin/bash
