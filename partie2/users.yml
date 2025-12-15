@@ -1,0 +1,22 @@
+---
+users:
+  - username: alice
+    password: Pass123!
+    fullname: Alice Dupont
+    phone: +237690123456
+    email: alice@example.com
+    shell: /bin/bash
+  
+  - username: bob
+    password: SecureP@ss
+    fullname: Bob Martin
+    phone: +237691234567
+    email: bob@example.com
+    shell: /bin/zsh
+  
+  - username: charlie
+    password: MyP@ssw0rd
+    fullname: Charlie Nguema
+    phone: +237692345678
+    email: charlie@example.com
+    shell: /bin/bash
