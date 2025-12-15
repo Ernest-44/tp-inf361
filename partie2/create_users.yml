@@ -1,0 +1,135 @@
+---
+- name: Automatisation de la création d'utilisateurs sous Linux
+  hosts: localhost
+  connection: local
+  become: yes
+
+  vars_files:
+    - users.yml
+
+  vars:
+    group_name: students-inf-361
+    ssh_port: 22
+    server_ip: "{{ ansible_default_ipv4.address }}"
+    smtp_host: smtp.gmail.com
+    smtp_port: 587
+    smtp_user: "votre-email@gmail.com"
+    smtp_password: "votre-app-password"
+
+  tasks:
+
+    # ÉTAPE 1 : Créer le groupe principal
+    - name: Créer le groupe {{ group_name }}
+      group:
+        name: "{{ group_name }}"
+        state: present
+
+    # ÉTAPE 2 : Installer les dépendances nécessaires
+    - name: Installer les packages requis
+      apt:
+        name:
+          - quota
+          - quotatool
+          - zsh
+          - mailutils
+        state: present
+        update_cache: yes
+      ignore_errors: yes
+
+    # ÉTAPE 3 : Restreindre la commande su au groupe sudo
+    - name: Restreindre su au groupe sudo
+      lineinfile:
+        path: /etc/pam.d/su
+        line: 'auth required pam_wheel.so group=sudo'
+        state: present
+
+    # ÉTAPE 4 : Créer les utilisateurs
+    - name: Créer les utilisateurs
+      user:
+        name: "{{ item.username }}"
+        comment: "{{ item.fullname }},{{ item.phone }},{{ item.email }}"
+        shell: "{{ item.shell | default('/bin/bash') }}"
+        groups: "{{ group_name }},sudo"
+        append: yes
+        create_home: yes
+        password: "{{ item.password | password_hash('sha512') }}"
+        update_password: on_create
+      loop: "{{ users }}"
+
+    # ÉTAPE 5 : Forcer le changement du mot de passe
+    - name: Forcer l'expiration du mot de passe
+      command: chage -d 0 {{ item.username }}
+      loop: "{{ users }}"
+
+    # ÉTAPE 6 : Créer le message de bienvenue
+    - name: Créer le fichier WELCOME.txt
+      copy:
+        dest: "/home/{{ item.username }}/WELCOME.txt"
+        owner: "{{ item.username }}"
+        group: "{{ item.username }}"
+        mode: '0644'
+        content: |
+          ╔══════════════════════════════════════════════════════════╗
+          ║                                                          ║
+          ║      Bienvenue {{ item.fullname }} !                     ║
+          ║                                                          ║
+          ║  Université de Yaoundé I                                  ║
+          ║  INF 3611 : Administration Systèmes                       ║
+          ║                                                          ║
+          ║  Username : {{ item.username }}                           ║
+          ║  Email    : {{ item.email }}                              ║
+          ║  WhatsApp : {{ item.phone }}                              ║
+          ║                                                          ║
+          ║  IMPORTANT : Changez votre mot de passe !                ║
+          ║                                                          ║
+          ╚══════════════════════════════════════════════════════════╝
+      loop: "{{ users }}"
+
+    # ÉTAPE 7 : Afficher le message à la connexion
+    - name: Ajouter WELCOME.txt dans .bashrc
+      blockinfile:
+        path: "/home/{{ item.username }}/.bashrc"
+        block: |
+          if [ -f ~/WELCOME.txt ]; then
+              cat ~/WELCOME.txt
+          fi
+        create: yes
+        owner: "{{ item.username }}"
+        group: "{{ item.username }}"
+      loop: "{{ users }}"
+
+    # ÉTAPE 8 : Configurer les quotas disque (15 Go)
+    - name: Appliquer les quotas disque
+      shell: setquota -u {{ item.username }} 14680064 15728640 0 0 / || true
+      loop: "{{ users }}"
+      ignore_errors: yes
+
+    # ÉTAPE 9 : Limiter la mémoire à 20 %
+    - name: Récupérer la RAM totale
+      shell: grep MemTotal /proc/meminfo | awk '{print $2}'
+      register: total_ram
+      changed_when: false
+
+    - name: Calculer 20 % de la RAM
+      set_fact:
+        ram_limit: "{{ (total_ram.stdout | int * 0.2) | int }}"
+
+    - name: Appliquer les limites mémoire
+      copy:
+        dest: "/etc/security/limits.d/{{ item.username }}.conf"
+        mode: '0644'
+        content: |
+          {{ item.username }} soft as {{ ram_limit }}
+          {{ item.username }} hard as {{ ram_limit }}
+          {{ item.username }} soft nproc 100
+          {{ item.username }} hard nproc 150
+      loop: "{{ users }}"
+
+    # ÉTAPE 10 : Log récapitulatif
+    - name: Créer le log Ansible
+      copy:
+        dest: "/var/log/user_creation_ansible.log"
+        content: |
+          Création d'utilisateurs terminée.
+          Groupe : {{ group_name }}
+          Nombre d'utilisateurs : {{ users | length }}
